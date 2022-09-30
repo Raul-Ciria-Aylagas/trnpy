@@ -40,12 +40,45 @@ import time
 import pandas as pd
 import psutil
 import itertools
+from pathlib import Path
 
 # Default values that are used by multiple classes:
 regex_result_files_def = r'Result|\.sum|\.pr.|\.plt|\.out'  # result files
 
 # Define the logging function
 logger = logging.getLogger(__name__)
+
+# Get default trnsys installation
+def _find_trnsys_installation():
+    rootpath = Path('C:/')
+    trnversion = []
+    # Find TRNSYS folder
+    for f in rootpath.iterdir():
+        if 'trnsys' in f.stem.lower():
+            trnversion.append(f)
+    # Sort to versions
+    trnversion = sorted(trnversion,key=str.lower,reverse=True)
+    # Find exe folder
+    for i, vpath in enumerate(trnversion):
+        for f in vpath.iterdir():
+            if f.stem.lower()=='exe':
+                trnversion[i]=f
+                break
+    # Find executable
+    for i, vpath in enumerate(trnversion):
+        for f in vpath.iterdir():
+            if (f.suffix==".exe") and ('trnexe' in f.stem.lower()):
+                trnversion[i]=vpath.joinpath(f)
+    return trnversion
+
+trnsys_versions = _find_trnsys_installation()
+if len(trnsys_versions)>0:
+    default_trnsys_version = str(trnsys_versions[0])
+    default_trnsys_folder = str(trnsys_versions[0].parent.parent.joinpath('Work/batch'))
+else:
+    print("Unable to find TRNSYS installation")    
+    default_trnsys_version = ""
+    default_trnsys_folder = ""
 
 
 class TRNExe(object):
@@ -60,7 +93,7 @@ class TRNExe(object):
     """
 
     def __init__(self,
-                 path_TRNExe=r'C:\Trnsys17\Exe\TRNExe.exe',
+                 path_TRNExe=default_trnsys_version,
                  mode_trnsys_hidden=False,
                  mode_exec_parallel=False,
                  n_cores=0,
@@ -141,6 +174,7 @@ class TRNExe(object):
         # Wait until the process is finished
         try:
             while proc.poll() is None:
+                time.sleep(0.5)
                 # While we wait, we check if TRNSYS is still running
                 if self.TRNExe_is_alive(proc.pid) is False:
                     logger.debug('TRNSYS is inactive and may have encountered '
@@ -535,7 +569,7 @@ class DCK_processor(object):
     new frequencies, e.g. from hours to months.
     """
 
-    def __init__(self, sim_folder=r'C:\Trnsys17\Work\batch',
+    def __init__(self, sim_folder=default_trnsys_folder,
                  regex_result_files=regex_result_files_def):
         self.sim_folder = sim_folder
         self.regex_result_files = regex_result_files
